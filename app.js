@@ -1,7 +1,14 @@
 const $ = s => document.querySelector(s);
 const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
 const fmt = s => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-const dur = w => w.steps.reduce((a, s) => a + s.sec, 0);
+const dur = w => w.steps.reduce((a, s) => a + s.sec * (s.rep || 1), 0) * (w.rounds || 1);
+/* Déplie les répétitions et les tours en une liste d'étapes à jouer */
+function expand(w) {
+  const out = [];
+  for (let r = 0; r < (w.rounds || 1); r++)
+    w.steps.forEach(s => { for (let k = 0; k < (s.rep || 1); k++) out.push(s); });
+  return out;
+}
 
 let workouts = [];
 try { workouts = JSON.parse(localStorage.getItem('workouts') || '[]'); } catch (e) {}
@@ -20,7 +27,7 @@ function renderHome() {
     const withImg = w.steps.find(s => s.img);
     if (withImg) th.style.backgroundImage = 'url("' + withImg.img + '")';
     const info = el('div', 'info');
-    info.append(el('strong', '', w.title), el('span', '', w.steps.length + ' étapes, durée ' + fmt(dur(w))));
+    info.append(el('strong', '', w.title), el('span', '', expand(w).length + ' étapes, durée ' + fmt(dur(w))));
     const ed = el('button', 'icon', '✎'); ed.setAttribute('aria-label', 'Modifier');
     ed.onclick = e => { e.stopPropagation(); openEditor(w); };
     const del = el('button', 'icon', '🗑'); del.setAttribute('aria-label', 'Supprimer');
@@ -36,11 +43,12 @@ function renderHome() {
 
 /* ---------- Éditeur ---------- */
 let draft = null;
-const newStep = t => ({ type: t, title: t === 'work' ? 'Effort' : 'Pause', sec: t === 'work' ? 30 : 10, img: '' });
+const newStep = t => ({ type: t, title: t === 'work' ? 'Effort' : 'Pause', sec: t === 'work' ? 30 : 10, rep: 1, img: '' });
 
 function openEditor(w) {
-  draft = w ? JSON.parse(JSON.stringify(w)) : { id: Date.now(), title: '', steps: [newStep('work'), newStep('rest')] };
+  draft = w ? JSON.parse(JSON.stringify(w)) : { id: Date.now(), title: '', rounds: 1, steps: [newStep('work'), newStep('rest')] };
   $('#wTitle').value = draft.title;
+  $('#wRounds').value = draft.rounds || 1;
   renderSteps();
   $('#editor').hidden = false;
 }
@@ -70,6 +78,9 @@ function renderSteps() {
     const d = el('div', 'step ' + s.type);
     const top = el('div', 'row', null);
     top.append(el('b', '', s.type === 'work' ? 'Entraînement' : 'Pause'));
+    const dup = el('button', 'icon', '⧉'); dup.setAttribute('aria-label', 'Dupliquer');
+    dup.onclick = () => { draft.steps.splice(i + 1, 0, JSON.parse(JSON.stringify(s))); renderSteps(); };
+    top.append(dup);
     const rm = el('button', 'icon', '✕'); rm.setAttribute('aria-label', 'Retirer');
     rm.onclick = () => { draft.steps.splice(i, 1); renderSteps(); };
     top.append(rm);
@@ -82,6 +93,11 @@ function renderSteps() {
     m.oninput = se.oninput = upd;
     tm.append(m, el('span', '', 'min'), se, el('span', '', 's'));
 
+    const rp = el('div', 'row time');
+    const rn = numInput(s.rep || 1); rn.min = 1;
+    rn.oninput = () => { s.rep = Math.max(1, +rn.value || 1); };
+    rp.append(el('span', '', 'Répéter'), rn, el('span', '', 'fois de suite'));
+
     const ir = el('div', 'row');
     const pick = el('label', 'pick', s.img ? 'Changer l’image' : 'Ajouter une image');
     const f = el('input'); f.type = 'file'; f.accept = 'image/*'; f.hidden = true;
@@ -89,7 +105,7 @@ function renderSteps() {
     pick.append(f); ir.append(pick);
     if (s.img) { const p = el('img', 'prev'); p.src = s.img; p.alt = ''; ir.append(p); }
 
-    d.append(top, t, tm, ir); box.append(d);
+    d.append(top, t, tm, rp, ir); box.append(d);
   });
 }
 
@@ -99,6 +115,7 @@ $('#cancel').onclick = () => { $('#editor').hidden = true; };
 $('#save').onclick = () => {
   if (!draft.steps.length) { alert('Ajoute au moins une étape.'); return; }
   draft.title = $('#wTitle').value.trim() || 'Entraînement';
+  draft.rounds = Math.max(1, +$('#wRounds').value || 1);
   const i = workouts.findIndex(x => x.id === draft.id);
   if (i < 0) workouts.push(draft); else workouts[i] = draft;
   persist(); $('#editor').hidden = true; renderHome();
@@ -117,7 +134,7 @@ function beep(f, d) {
 
 async function startPlayer(w) {
   try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); actx.resume(); } catch (e) {}
-  P = { w, paused: false };
+  P = { w, seq: expand(w), paused: false };
   try { P.wl = await navigator.wakeLock.request('screen'); } catch (e) {}
   $('#player').hidden = false;
   loadStep(0);
@@ -127,7 +144,7 @@ async function startPlayer(w) {
 function loadStep(i) {
   P.i = i;
   const p = $('#player');
-  if (i >= P.w.steps.length) {
+  if (i >= P.seq.length) {
     p.className = '';
     $('#pStep').textContent = P.w.title;
     $('#pTitle').textContent = 'Terminé !';
@@ -136,10 +153,10 @@ function loadStep(i) {
     clearInterval(P.timer); P.done = true;
     return;
   }
-  const s = P.w.steps[i];
+  const s = P.seq[i];
   P.left = s.sec * 1000; P.last = Date.now(); P.shown = s.sec;
   p.className = s.type;
-  $('#pStep').textContent = 'Étape ' + (i + 1) + ' sur ' + P.w.steps.length;
+  $('#pStep').textContent = 'Étape ' + (i + 1) + ' sur ' + P.seq.length;
   $('#pTitle').textContent = s.title;
   $('#pImg').hidden = !s.img; if (s.img) $('#pImg').src = s.img;
   $('#pTime').textContent = fmt(s.sec);

@@ -17,6 +17,10 @@ function persist() {
   catch (e) { alert('Stockage plein : retire quelques images.'); }
 }
 
+/* Le bouton + et l'accueil sont activés en premier, quoi qu'il arrive ensuite */
+$('#fab').onclick = () => openEditor(null);
+setTimeout(renderHome, 0);
+
 /* ---------- Accueil ---------- */
 function renderHome() {
   const list = $('#list'); list.innerHTML = '';
@@ -48,7 +52,7 @@ const newStep = t => ({ type: t, title: t === 'work' ? 'Effort' : 'Pause', sec: 
 function openEditor(w) {
   draft = w ? JSON.parse(JSON.stringify(w)) : { id: Date.now(), title: '', rounds: 1, img: '', steps: [newStep('work'), newStep('rest')] };
   $('#wTitle').value = draft.title;
-  $('#wRounds').value = draft.rounds || 1;
+  if ($('#wRounds')) $('#wRounds').value = draft.rounds || 1;
   renderSteps();
   renderCover();
   $('#editor').hidden = false;
@@ -111,13 +115,14 @@ function renderSteps() {
 }
 
 function renderCover() {
+  if (!$('#coverPrev')) return;
   const has = !!draft.img;
   $('#coverPrev').style.backgroundImage = has ? 'url("' + draft.img + '")' : '';
   $('#coverText').textContent = has ? 'Changer l’image' : 'Ajouter une image';
   $('#coverDel').hidden = !has;
 }
-$('#wImg').onchange = e => { resize(e.target.files[0], u => { draft.img = u; renderCover(); }); e.target.value = ''; };
-$('#coverDel').onclick = () => { draft.img = ''; renderCover(); };
+if ($('#wImg')) $('#wImg').onchange = e => { resize(e.target.files[0], u => { draft.img = u; renderCover(); }); e.target.value = ''; };
+if ($('#coverDel')) $('#coverDel').onclick = () => { draft.img = ''; renderCover(); };
 
 $('#addWork').onclick = () => { draft.steps.push(newStep('work')); renderSteps(); };
 $('#addRest').onclick = () => { draft.steps.push(newStep('rest')); renderSteps(); };
@@ -125,12 +130,11 @@ $('#cancel').onclick = () => { $('#editor').hidden = true; };
 $('#save').onclick = () => {
   if (!draft.steps.length) { alert('Ajoute au moins une étape.'); return; }
   draft.title = $('#wTitle').value.trim() || 'Entraînement';
-  draft.rounds = Math.max(1, +$('#wRounds').value || 1);
+  draft.rounds = Math.max(1, +(($('#wRounds') || {}).value) || 1);
   const i = workouts.findIndex(x => x.id === draft.id);
   if (i < 0) workouts.push(draft); else workouts[i] = draft;
   persist(); $('#editor').hidden = true; renderHome();
 };
-$('#fab').onclick = () => openEditor(null);
 
 /* ---------- Lecteur ---------- */
 let P = null, actx = null;
@@ -190,5 +194,4 @@ $('#pQuit').onclick = () => {
   $('#player').hidden = true; $('#pToggle').textContent = 'Suspendre'; P = null;
 };
 
-renderHome();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

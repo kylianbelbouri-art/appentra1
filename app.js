@@ -24,8 +24,8 @@ function renderHome() {
   workouts.forEach(w => {
     const card = el('div', 'card');
     const th = el('div', 'thumb');
-    const withImg = w.steps.find(s => s.img);
-    if (withImg) th.style.backgroundImage = 'url("' + withImg.img + '")';
+    const cover = w.img || (w.steps.find(s => s.img) || {}).img;
+    if (cover) th.style.backgroundImage = 'url("' + cover + '")';
     const info = el('div', 'info');
     info.append(el('strong', '', w.title), el('span', '', expand(w).length + ' étapes, durée ' + fmt(dur(w))));
     const ed = el('button', 'icon', '✎'); ed.setAttribute('aria-label', 'Modifier');
@@ -46,10 +46,11 @@ let draft = null;
 const newStep = t => ({ type: t, title: t === 'work' ? 'Effort' : 'Pause', sec: t === 'work' ? 30 : 10, rep: 1, img: '' });
 
 function openEditor(w) {
-  draft = w ? JSON.parse(JSON.stringify(w)) : { id: Date.now(), title: '', rounds: 1, steps: [newStep('work'), newStep('rest')] };
+  draft = w ? JSON.parse(JSON.stringify(w)) : { id: Date.now(), title: '', rounds: 1, img: '', steps: [newStep('work'), newStep('rest')] };
   $('#wTitle').value = draft.title;
   $('#wRounds').value = draft.rounds || 1;
   renderSteps();
+  renderCover();
   $('#editor').hidden = false;
 }
 
@@ -78,6 +79,13 @@ function renderSteps() {
     const d = el('div', 'step ' + s.type);
     const top = el('div', 'row', null);
     top.append(el('b', '', s.type === 'work' ? 'Entraînement' : 'Pause'));
+    const mv = (d, label, aria) => {
+      const b = el('button', 'icon', label); b.setAttribute('aria-label', aria);
+      b.disabled = i + d < 0 || i + d >= draft.steps.length;
+      b.onclick = () => { const [x] = draft.steps.splice(i, 1); draft.steps.splice(i + d, 0, x); renderSteps(); };
+      return b;
+    };
+    top.append(mv(-1, '↑', 'Monter'), mv(1, '↓', 'Descendre'));
     const dup = el('button', 'icon', '⧉'); dup.setAttribute('aria-label', 'Dupliquer');
     dup.onclick = () => { draft.steps.splice(i + 1, 0, JSON.parse(JSON.stringify(s))); renderSteps(); };
     top.append(dup);
@@ -98,16 +106,18 @@ function renderSteps() {
     rn.oninput = () => { s.rep = Math.max(1, +rn.value || 1); };
     rp.append(el('span', '', 'Répéter'), rn, el('span', '', 'fois de suite'));
 
-    const ir = el('div', 'row');
-    const pick = el('label', 'pick', s.img ? 'Changer l’image' : 'Ajouter une image');
-    const f = el('input'); f.type = 'file'; f.accept = 'image/*'; f.hidden = true;
-    f.onchange = () => resize(f.files[0], u => { s.img = u; renderSteps(); });
-    pick.append(f); ir.append(pick);
-    if (s.img) { const p = el('img', 'prev'); p.src = s.img; p.alt = ''; ir.append(p); }
-
-    d.append(top, t, tm, rp, ir); box.append(d);
+    d.append(top, t, tm, rp); box.append(d);
   });
 }
+
+function renderCover() {
+  const has = !!draft.img;
+  $('#coverPrev').style.backgroundImage = has ? 'url("' + draft.img + '")' : '';
+  $('#coverText').textContent = has ? 'Changer l’image' : 'Ajouter une image';
+  $('#coverDel').hidden = !has;
+}
+$('#wImg').onchange = e => { resize(e.target.files[0], u => { draft.img = u; renderCover(); }); e.target.value = ''; };
+$('#coverDel').onclick = () => { draft.img = ''; renderCover(); };
 
 $('#addWork').onclick = () => { draft.steps.push(newStep('work')); renderSteps(); };
 $('#addRest').onclick = () => { draft.steps.push(newStep('rest')); renderSteps(); };
@@ -158,7 +168,7 @@ function loadStep(i) {
   p.className = s.type;
   $('#pStep').textContent = 'Étape ' + (i + 1) + ' sur ' + P.seq.length;
   $('#pTitle').textContent = s.title;
-  $('#pImg').hidden = !s.img; if (s.img) $('#pImg').src = s.img;
+  const im = P.w.img || s.img; $('#pImg').hidden = !im; if (im) $('#pImg').src = im;
   $('#pTime').textContent = fmt(s.sec);
   $('#pToggle').hidden = $('#pSkip').hidden = false;
 }

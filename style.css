@@ -13,6 +13,7 @@ h1{font-size:2rem;margin:0 0 18px;letter-spacing:-.02em}
 .info{flex:1;display:flex;flex-direction:column;min-width:0}
 .info strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .info span{color:var(--mute);font-size:.9rem}
+.icon:disabled{opacity:.3}
 .icon{width:40px;height:40px;border-radius:50%;font-size:1.1rem}
 #fab{position:fixed;right:20px;bottom:calc(env(safe-area-inset-bottom) + 20px);width:64px;height:64px;border-radius:50%;background:var(--work);color:#fff;font-size:2.2rem;line-height:1;box-shadow:0 6px 18px rgba(47,91,255,.45)}
 #editor,#player{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column}
@@ -29,6 +30,8 @@ input.big{font-size:1.4rem;font-weight:700;margin-bottom:14px}
 .time input{width:72px;text-align:center}
 .pick{color:var(--work);padding:8px 0;flex:1}
 .prev{width:56px;height:56px;border-radius:10px;object-fit:cover}
+.cover{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+#coverPrev{width:72px;height:72px;flex:none;border-radius:14px;background:var(--line) center/cover}
 .rounds{display:flex;align-items:center;gap:10px;margin-bottom:14px;color:var(--mute);font-size:.95rem}
 .rounds label{flex:1}.rounds input{width:80px;text-align:center}
 .add{display:grid;grid-template-columns:1fr 1fr;gap:10px}
